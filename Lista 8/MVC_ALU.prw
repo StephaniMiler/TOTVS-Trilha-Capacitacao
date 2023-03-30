@@ -10,13 +10,15 @@
 User Function MVC_ALU()
     Local cAlias := 'ZZZ'
     Local cTitle := 'Cadastro de Alunos'
-    Local oBrowse := FwMBrowse():New()
+    Local oMark  := FwMarkBrowse():New()
 
-    oBrowse:SetAlias(cAlias)
-    oBrowse:SetDescription(cTitle)
-    oBrowse:DisableDetails()
-    oBrowse:DisableReport()
-    oBrowse:ACTIVATE()
+    oMark:SetAlias(cAlias)
+    oMark:SetDescription(cTitle)
+    oMark:AddButton('Exc. marcados', 'U_EXCMARC', 5, 1)
+    oMark:SetFieldMark('ZZZ_MARK')
+    oMark:DisableDetails()
+    oMark:DisableReport()
+    oMark:ACTIVATE()
         
 Return
 
@@ -30,21 +32,21 @@ Static Function MenuDef()
 Return aRotina
 
 Static Function ModelDef()
-    Local oModel   := MPFormModel():New('MVC_ALUM', NIL, {|oModel| ValidPos(oModel)})
+    Local oView   := MPFormModel():New('MVC_ALUM', NIL, {|oView| ValidPos(oView)})
     Local oStruZZZ:= FwFormStruct(1, 'ZZZ')
-    Local aGatilho := FwStruTrigger('ZZZ_CDI', 'ZZZ_INSTRU', 'ZZD->ZZD_NOME', .T., 'ZZD', 1, "XFILIAL('ZZD')+ ALLTRIM(M->ZZC_CDI)")
+    Local aGatilho := FwStruTrigger('ZZZ_CDI', 'ZZZ_INSTRU', 'ZZD->ZZD_NOME', .T., 'ZZD', 1, "XFILIAL('ZZD')+ ALLTRIM(M->ZZZ_CDI)")
 
     
     oStruZZZ:SetProperty('ZZZ_CODIGO', MODEL_FIELD_INIT, FwBuildFeature(STRUCT_FEATURE_INIPAD, "GETSXENUM('ZZZ','ZZZ_CODIGO')"))
 
     oStruZZZ:AddTrigger(aGatilho[1], aGatilho[2], aGatilho[3], aGatilho[4])
 
-    oModel:AddFields('ZZZMASTER' , NIL, oStruZZZ)
-    oModel:SetDescription('Cadastro de Alunos')
-    oModel:GetModel('ZZZMASTER'):SetDescription('Cadastro de Alunos')
-    oModel:SetPrimaryKey({'ZZZ_CODIGO'})
+    oView:AddFields('ZZZMASTER' , NIL, oStruZZZ)
+    oView:SetDescription('Cadastro de Alunos')
+    oView:GetModel('ZZZMASTER'):SetDescription('Cadastro de Alunos')
+    oView:SetPrimaryKey({'ZZZ_CODIGO'})
 
-Return oModel
+Return oView
 
 Static Function ViewDef()
     Local oModel   := FwLoadModel('MVC_ALU')
@@ -59,14 +61,15 @@ Static Function ViewDef()
     oView:SetOwnerView('VIEW_ZZZ' , 'Alunos')
 
     oView:SetFieldAction('ZZZ_AULAS' , {|oView| ValidAula(oView)})
+    oView:SetFieldAction('ZZZ_CDI' , {|oView| ValidAula(oView)})
 
 Return oView
 
-Static Function ValidPos(oModel)
+Static Function ValidPos(oView)
     Local lRetorno  := .T.
-    Local nOper     := oModel:GetOperation()
-    Local cAula     := oModel:GetValue('ZZZMASTER' , 'ZZZ_AULAS')
-    Local cInstrut  := oModel:GetValue('ZZZMASTER' , 'ZZZ_CDI')
+    Local nOper     := oView:GetOperation()
+    Local cAula     := oView:GetValue('ZZZMASTER' , 'ZZZ_AULAS')
+    Local cInstrut  := oView:GetValue('ZZZMASTER' , 'ZZZ_CDI')
 
     DBSELECTAREA('ZZD')
     If DBSEEK( XFILIAL('ZZD') + cInstrut )
@@ -105,6 +108,50 @@ Static Function ValidPos(oModel)
 
 Return lRetorno
 
-Static Function ValidAula()
-        
+Static Function ValidAula(oView)
+    Local oModel    := oView:GetModel('ZZZMASTER')
+    Local cAula     := oView:GetValue('ZZZMASTER' , 'ZZZ_AULAS')
+    Local cInstrut  := oView:GetValue('ZZZMASTER' , 'ZZZ_CDI')
+
+    If alltrim(cInstrut) == '' .AND. alltrim(cAula) == '1'
+        Help(,,'Inclusão não permitida!',,'Não é possível preencher o campo de aulas sem selecionar um instrutor', 1, 0,,,,,,{'Informe o código do instrutor'})
+        oModel:SetValue('ZZZ_AULAS', '2')
+    Elseif alltrim(cAula) == '1'
+        DBSELECTAREA('ZZD')
+        If DBSEEK( XFILIAL('ZZD') + cInstrut )
+            If ZZD->ZZD_QUANT >= 5
+                Help(,,'Instrutor não permitido!',,'O instrutor selecionado já possui 5 alunos', 1, 0,,,,,,{'Escolha um professor com menos de 5 alunos'})
+                oModel:SetValue('ZZZ_AULAS', '2')
+            Endif
+        Endif
+    Endif 
+   oView:Refresh()   
+Return 
+
+User Function EXCMARC()
+    If MSGYESNO( 'Deseja excluir os itens selecionados?' , 'Excluir alunos')
+        DBSELECTAREA('ZZZ')
+        ZZZ->(DBGOTOP())
+        While ZZZ->(!EOF())
+            If oMark:IsMark()
+                If ALLTRIM(ZZZ->ZZZ_AULAS) == '1'
+                    Help(,,'Exclusão não permitida!',,'Não é possível excluir alunos em aula', 1, 0,,,,,,{'O aluno está realizando aulas'})
+                Else
+                    DBSELECTAREA('ZZD')
+                    If ZZD->(DBSEEK( XFILIAL('ZZD') + ZZZ->ZZZ_CDI))
+                       If ZZD->ZZD_QUANT <> 0
+                            RecLock('ZZD', .F.)
+                            ZZD->ZZD_QUANT -= 1
+                            ZZD->(MsUnLock())
+                        Endif
+                    Endif
+                    RecLock('ZZZ', .F.)
+                    ZZZ->(DBDelete())
+                    ZZZ->(MsUnLock())
+                Endif   
+            Endif  
+              ZZZ->(DbSkip()) 
+        Enddo
+        oMark:Refresh(.T.)
+    Endif  
 Return 

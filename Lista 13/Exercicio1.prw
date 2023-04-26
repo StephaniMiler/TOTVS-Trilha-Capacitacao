@@ -7,27 +7,20 @@
   @since 24/04/2023
   /*/
 User Function CriaPasta()
-  Local cCaminho   := 'C:\Windows\Temp\' // Endereço onde a pasta será criada
-  Local cNomePasta := 'Lista 13 – Ex1\' // Nome da pasta
 
-  // Verificando se a pasta já existe
+  Local cCaminho   := GetTempPath()
+  Local cNomePasta := 'Lista 13 – Ex1\'
   if !ExistDir(cCaminho + cNomePasta)
-    if MakeDir(cCaminho + cNomePasta) == 0
-      if ExistBlock('Escreve')
-        ExecBlock('Escreve', .F., .F., cCaminho + cNomePasta)
-      endif
-      if ExistBlock('EscrCSV')
-        ExecBlock('EscrCSV', .F., .F., cCaminho + cNomePasta)
+    if MakeDir(cCaminho + cNomePasta) == 0 
+      if ExistBlock('EscreveTxt')             
+        ExecBlock('EscreveTxt', .F., .F., cCaminho + cNomePasta)
       endif
     else
-      FwAlertError('Houve um erro ao criar a pasta ' + cNomePasta, 'Atenção')
+      FwAlertError('Não foi possível criar a pasta ' + cNomePasta, 'Atenção!')
     endif
   else
-    if ExistBlock('Escreve')
-      ExecBlock('Escreve', .F., .F., cCaminho + cNomePasta)
-    endif
-    if ExistBlock('EscrCSV')
-      ExecBlock('EscrCSV', .F., .F., cCaminho + cNomePasta)
+    if ExistBlock('EscreveTxt')
+      ExecBlock('EscreveTxt', .F., .F., cCaminho + cNomePasta)
     endif
   endif
 Return
